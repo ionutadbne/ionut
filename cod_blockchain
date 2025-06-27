@@ -1,0 +1,45 @@
+from web3 import Web3
+import hashlib
+import time
+
+ganache_url = "http://127.0.0.1:7545"
+web3 = Web3(Web3.HTTPProvider(ganache_url))
+
+if not web3.is_connected():
+    print("Eroare: Nu mă pot conecta la Ganache.")
+    exit()
+
+sender = "0x2D87aC28AfAE5f303bF488Aad89Ac69d99300Ccd"
+recipient = "0x8D9738fE267620035e5F82be93dA18962eABddEb"
+
+nonce = web3.eth.get_transaction_count(sender)
+
+
+file_path = "ionut-barbalan.txt"
+
+with open(file_path, "r") as f:
+    lines = f.readlines()
+
+for line in lines:
+    line = line.strip()
+    if not line:
+        continue
+
+    data_hash = hashlib.sha256(line.encode()).hexdigest()
+    print(f"Trimitem hash: {data_hash}")
+
+    txn = {
+        'from': sender,
+        'to': recipient,
+        'value': 0,
+        'gas': 200000,
+        'gasPrice': web3.to_wei('20', 'gwei'),
+        'nonce': nonce,
+        'data': web3.to_hex(text=data_hash)
+    }
+
+    txn_hash = web3.eth.send_transaction(txn)
+    print(f"Tranzacție trimisă cu hash: {txn_hash.hex()}")
+
+    nonce += 1  
+    time.sleep(1)  
