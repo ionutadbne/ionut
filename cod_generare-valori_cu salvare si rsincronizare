@@ -1,0 +1,101 @@
+import paho.mqtt.client as mqtt
+import time
+import random
+import json
+import os
+
+
+broker = "mqtt.beia-telemetrie.ro"
+port = 1883
+topic = "training/device/ionut-barbalan"
+client_id = "simulator-ionut-barbalan"
+
+
+backup_file = "backup_ionut.json"
+main_log_file = "ionut-barbalan.txt"
+
+
+client = mqtt.Client(client_id=client_id, protocol=mqtt.MQTTv311, transport="tcp")
+client_connected = False
+
+
+def on_connect(client, userdata, flags, rc):
+    global client_connected
+    if rc == 0:
+        print("Conectat la broker MQTT")
+        client_connected = True
+    else:
+        print("Conectare eșuată. Cod:", rc)
+
+
+client.on_connect = on_connect
+
+
+
+
+client.connect(broker, port)
+client.loop_start()
+
+
+def save_to_backup(payload):
+    with open(backup_file, "a") as f:
+        f.write(payload + "\n")
+
+
+def resend_backup_messages():
+    if not os.path.exists(backup_file):
+        return
+
+
+    print("🔁 Resincronizare cu brokerul...")
+    with open(backup_file, "r") as f:
+        lines = f.readlines()
+
+
+    success_lines = []
+
+
+    for line in lines:
+        line = line.strip()
+        if line:
+            result = client.publish(topic, line)
+            if result.rc == 0:
+                print(f"Resincronizat: {line}")
+                success_lines.append(line)
+                with open(main_log_file, "a") as log:
+                    log.write(line + "\n")
+
+
+    with open(backup_file, "w") as f:
+        for line in lines:
+            if line.strip() not in success_lines:
+                f.write(line)
+
+
+while not client_connected:
+    print("Aștept conectarea...")
+    time.sleep(2)
+
+
+resend_backup_messages()
+
+
+while True:
+    data = {
+        "temperature": round(random.uniform(20.0, 30.0), 2),
+        "humidity": round(random.uniform(40.0, 60.0), 2)
+    }
+    payload = json.dumps(data)
+
+
+    result = client.publish(topic, payload)
+    if result.rc == 0:
+        print(f"Trimis: {payload}")
+        with open(main_log_file, "a") as f:
+            f.write(payload + "\n")
+    else:
+        print("Eroare la trimitere. Salvez local...")
+        save_to_backup(payload)
+
+
+    time.sleep(10)
